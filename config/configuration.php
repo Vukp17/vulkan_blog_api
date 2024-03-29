@@ -1,11 +1,11 @@
 <?php
-define('DEBUG_ON', true);
+define('DEBUG_ON', false);
 
 define('LOGIN_TYPE', 'database');
 
 define('GLOBAL_DATABASE', 'kfjnkrqp_blog');
 
-define('API_LOCATION', 'i');
+define('API_LOCATION', 'api');
 
 
 

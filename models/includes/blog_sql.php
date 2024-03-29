@@ -17,6 +17,9 @@ class Blog extends BlogAPI
     private $adminSettingsModule;
     function __construct($cuData)
     {
+        header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
+        header('Access-Control-Allow-Credentials: true');
+        header('Access-Control-Max-Age: 86400');    // cache for 1 day
         $this->clientID = $cuData->clientID;
         $this->userID = $cuData->userID;
         $this->userRank = $cuData->userRank;
@@ -25,6 +28,62 @@ class Blog extends BlogAPI
         $this->cuData = $cuData;
         $this->dbc = Db::connect(GLOBAL_DATABASE);
         $this->dbc->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    }
+    public function posts()
+    {
+        $sortType = $_GET['sortType'];
+        $sortOrder = $_GET['sortOrder'];
+        $pageStart = $_GET['pageStart'];
+        $pageLimit = $_GET['pageLimit'];
+        $searchValue = $_GET['searchValue'];
+
+        $query = "SELECT SQL_CALC_FOUND_ROWS a.* FROM post a ";
+
+        // GROUP BY
+        $query .= " GROUP BY a.id";
+
+        if ($searchValue) {
+            // GORUP BY - HAVING 
+            $searchValue = "%" . $searchValue . "%";
+            // BY WICH FIELDS TO SEARCH
+            $searchFields = " HAVING a.title LIKE :search
+                    OR a.summary LIKE :search  ";
+            //  OR a.username LIKE :search
+            // OR a.email LIKE :search
+            // OR a.gsm LIKE :search
+            // OR a.rank LIKE :search
+            // OR a.login_count LIKE :search
+            // OR a.last_login LIKE :search
+            // OR languageName LIKE :search
+            // OR languageCode LIKE :search
+            $query .= $searchFields;
+        }
+        if ($sortType) {
+            $query .= " ORDER BY `" . $sortType . "`";
+            if ($sortOrder == 'true') {
+                $query .= " DESC";
+            } else $query .= " ASC";
+        }
+        if (isset($pageStart) && isset($pageLimit)) {
+            $query .= " LIMIT :page, :rows";
+        }
+        $stmt = $this->dbc->prepare($query);
+        if ($searchValue) $stmt->bindValue(":search", $searchValue, PDO::PARAM_STR);
+        $stmt->bindValue(":page", intval($pageStart), PDO::PARAM_INT);
+        $stmt->bindValue(":rows", intval($pageLimit), PDO::PARAM_INT);
+        //echo $query;
+        $return = array();
+        if ($stmt->execute()) {
+            $return['data'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } else return printErrAndDie($stmt);
+
+        //GET DATA ROW COUNT
+        $query = "SELECT FOUND_ROWS() AS count";
+        $stmt = $this->dbc->prepare($query);
+        if ($stmt->execute()) {
+            $return['rows'] = $stmt->fetch(PDO::FETCH_ASSOC);
+        } else return printErrAndDie($stmt);
+        return $return;
     }
     /* DATABASE TABLE
     CREATE TABLE `post` (
@@ -117,25 +176,41 @@ class Blog extends BlogAPI
     /*    FUNCTIONS     */
     public function save_post($data)
     {
-        $return = (object)['success' => true,];
-        $query = "INSERT INTO post (title, metaTitle, slug, summary, published, createdAt, content) VALUES (:title, :metaTitle, :slug, :summary, :published, :createdAt, :content)";
-        $stmt = $this->dbc->prepare($query);
-        // $stmt->bindValue(":authorId", $this->userID, PDO::PARAM_STR);
-        $stmt->bindValue(":title", $data->title, PDO::PARAM_STR);
-        $stmt->bindValue(":metaTitle", $data->metaTitle, PDO::PARAM_STR);
-        $stmt->bindValue(":slug", $data->slug, PDO::PARAM_STR);
-        $stmt->bindValue(":summary", $data->summary, PDO::PARAM_STR);
-        $stmt->bindValue(":published", $data->published, PDO::PARAM_STR);
-        $stmt->bindValue(":createdAt", date('Y-m-d H:i:s'), PDO::PARAM_STR);
-        $stmt->bindValue(":content", $data->content, PDO::PARAM_STR);
-        if (!$stmt->execute()) {
+        $return = (object)['success' => true];
+
+        try {
+            $query = "INSERT INTO post (title, metaTitle, slug, summary, published, createdAt, content) VALUES (:title, :metaTitle, :slug, :summary, :published, :createdAt, :content)";
+            $stmt = $this->dbc->prepare($query);
+
+            // Bind parameters
+            $stmt->bindValue(":title", $data->title, PDO::PARAM_STR);
+            $stmt->bindValue(":metaTitle", $data->metaTitle, PDO::PARAM_STR);
+            $stmt->bindValue(":slug", $data->slug, PDO::PARAM_STR);
+            $stmt->bindValue(":summary", $data->summary, PDO::PARAM_STR);
+            $stmt->bindValue(":published", $data->published, PDO::PARAM_STR);
+            $stmt->bindValue(":createdAt", date('Y-m-d H:i:s'), PDO::PARAM_STR);
+            $stmt->bindValue(":content", $data->content, PDO::PARAM_STR);
+
+            if (!$stmt->execute()) {
+                $return->success = false;
+                $return->message = "Error saving post: " . $stmt->errorInfo()[2];
+                return $return;
+            }
+
+            $return->message = "Post saved";
+            return $return;
+        } catch (PDOException $e) {
+            // Log the error
+            error_log("Database Error: " . $e->getMessage());
+
+            // Handle the error gracefully
+            http_response_code(500);
             $return->success = false;
-            $return->message = "Error saving order";
+            $return->message = "Database Error: " . $e->getMessage();
             return $return;
         }
-        $return->message = "Post saved";
-        return $return;
     }
+
     public function update_post($data)
     {
         $return = (object)['success' => true,];

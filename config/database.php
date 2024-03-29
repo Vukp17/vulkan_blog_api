@@ -7,7 +7,7 @@ class Db {
 		# Database setup
 
 
-		$db_host = 'localhost';
+		// $db_host = 'localhost';
 		//$db_host = 'DESKTOP-K7NO64F\SQLEXPRESS';
 		//$db_user = 'vuk@admin';
 		//$db_pass = 'citera123';
@@ -15,8 +15,12 @@ class Db {
 		//$db_pass = 'cito123';
 		/*$db_user = 'citera_login';
 		$db_pass = '123456';*/
-		$db_pass = '';
-		$db_user = 'root';
+		// $db_pass = '';
+		// $db_user = 'root';
+        // $db_port = '3306';
+        $db_host = 'localhost';
+		$db_pass = 'vulkan2576';
+		$db_user = 'kfjnkrqp_admin';
         $db_port = '3306';
 
         try {
